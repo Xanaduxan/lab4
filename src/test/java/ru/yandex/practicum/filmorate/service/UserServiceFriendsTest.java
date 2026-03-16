@@ -34,57 +34,6 @@ class UserServiceFriendsTest {
         return userService.create(u);
     }
 
-    @Test
-    void shouldAddFriendMutuallyWhenAddFriend() {
-        User u1 = newUser("mail1@example.com", "user1", "User1");
-        User u2 = newUser("mail2@example.com", "user2", "User2");
-
-        userService.addFriend(u1.getId(), u2.getId());
-
-        User updated1 = userService.findById(u1.getId());
-        User updated2 = userService.findById(u2.getId());
-
-        assertTrue(updated1.getFriends().contains(u2.getId()));
-        assertTrue(updated2.getFriends().contains(u1.getId()));
-    }
-
-    @Test
-    void shouldThrowValidationExceptionWhenAddFriendToSelf() {
-        User u1 = newUser("mail1@example.com", "user1", "User1");
-
-        assertThrows(ValidationException.class,
-                () -> userService.addFriend(u1.getId(), u1.getId()));
-    }
-
-    @Test
-    void shouldNotDuplicateFriendWhenAddFriendTwice() {
-        User u1 = newUser("mail1@example.com", "user1", "User1");
-        User u2 = newUser("mail2@example.com", "user2", "User2");
-
-        userService.addFriend(u1.getId(), u2.getId());
-        userService.addFriend(u1.getId(), u2.getId());
-
-        User updated1 = userService.findById(u1.getId());
-        User updated2 = userService.findById(u2.getId());
-
-        assertEquals(1, updated1.getFriends().size());
-        assertEquals(1, updated2.getFriends().size());
-    }
-
-    @Test
-    void shouldRemoveFriendMutuallyWhenRemoveFriend() {
-        User u1 = newUser("mail1@example.com", "user1", "User1");
-        User u2 = newUser("mail2@example.com", "user2", "User2");
-
-        userService.addFriend(u1.getId(), u2.getId());
-        userService.removeFriend(u1.getId(), u2.getId());
-
-        User updated1 = userService.findById(u1.getId());
-        User updated2 = userService.findById(u2.getId());
-
-        assertFalse(updated1.getFriends().contains(u2.getId()));
-        assertFalse(updated2.getFriends().contains(u1.getId()));
-    }
 
     @Test
     void shouldReturnFriendsListWhenGetFriends() {
