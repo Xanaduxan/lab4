@@ -15,6 +15,7 @@ import ru.yandex.practicum.filmorate.storage.user.InMemoryUserStorage;
 import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -134,16 +135,32 @@ class FilmServiceLikesTest {
 
     @Test
     void shouldReturnFilmWithMostLikesWhenGetPopularFilms() {
-        User user = newUser("mail1@example.com", "user1");
+        User user1 = newUser("mail1@example.com", "user1");
+
+
+        User user2 = newUser("mail2@example.com", "user2");
+
 
         Film film1 = newFilm("Film1");
+        film1 = filmService.create(film1);
+
         Film film2 = newFilm("Film2");
+        film2 = filmService.create(film2);
 
-        filmService.addLike(film1.getId(), user.getId());
 
-        Film result = filmService.getPopular(1).iterator().next();
+        filmService.addLike(film1.getId(), user1.getId());
+        filmService.addLike(film1.getId(), user2.getId());
+
+
+        filmService.addLike(film2.getId(), user1.getId());
+
+        Collection<Film> popular = filmService.getPopular(1);
+
+        assertEquals(1, popular.size());
+
+        Film result = popular.iterator().next();
 
         assertEquals(film1.getId(), result.getId());
-        assertEquals(1, result.getLikes().size());
+        assertEquals(2, result.getLikes().size());
     }
 }
