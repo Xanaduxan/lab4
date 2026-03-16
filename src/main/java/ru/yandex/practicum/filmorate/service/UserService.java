@@ -114,6 +114,7 @@ public class UserService {
         return userStorage.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + userId + " не найден"));
     }
+
     private void checkNotEqualsId(Long firstId, Long secondId, String message) {
         if (firstId == null || secondId == null) {
             throw new ValidationException("Id не должны быть null");
