@@ -48,6 +48,7 @@ public class UserService {
     }
 
     public void addFriend(Long userId, Long friendId) {
+        checkNotEqualsId(userId, friendId, "Нельзя добавить самого себя в друзья");
         log.info("Пользователь с id={} добавляет в друзья пользователя с id={}", userId, friendId);
 
         User user = getUserOrThrow(userId);
@@ -58,6 +59,7 @@ public class UserService {
     }
 
     public void removeFriend(Long userId, Long friendId) {
+        checkNotEqualsId(userId, friendId, "Нельзя удалить самого себя из своих друзей");
         log.info("Пользователь с id={} удаляет из друзей пользователя с id={}", userId, friendId);
 
         User user = getUserOrThrow(userId);
@@ -78,7 +80,7 @@ public class UserService {
     public Collection<User> getCommonFriends(Long userId, Long otherId) {
         User user = getUserOrThrow(userId);
         User otherUser = getUserOrThrow(otherId);
-
+        checkNotEqualsId(userId, otherId, "Id не должны быть одинаковыми");
         Set<Long> otherFriends = otherUser.getFriends();
 
         return user.getFriends().stream()
@@ -111,5 +113,13 @@ public class UserService {
     private User getUserOrThrow(Long userId) {
         return userStorage.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + userId + " не найден"));
+    }
+    private void checkNotEqualsId(Long firstId, Long secondId, String message) {
+        if (firstId == null || secondId == null) {
+            throw new ValidationException("Id не должны быть null");
+        }
+        if (firstId.equals(secondId)) {
+            throw new ValidationException(message);
+        }
     }
 }
