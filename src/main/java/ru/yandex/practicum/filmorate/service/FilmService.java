@@ -14,7 +14,7 @@ import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Set;
 
 @Slf4j
@@ -154,7 +154,7 @@ public class FilmService {
             return;
         }
 
-        Set<Genre> uniqueGenres = new HashSet<>(film.getGenres());
+        Set<Genre> uniqueGenres = new LinkedHashSet<>(film.getGenres());
         film.setGenres(uniqueGenres);
     }
 
@@ -167,4 +167,5 @@ public class FilmService {
         userStorage.findById(userId)
                 .orElseThrow(() -> new NotFoundException("Пользователь с id=" + userId + " не найден"));
     }
+
 }

@@ -16,11 +16,7 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Types;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 @Repository
 @Qualifier("filmDbStorage")
@@ -174,7 +170,7 @@ public class FilmDbStorage implements FilmStorage {
             return;
         }
 
-        Set<Integer> uniqueGenreIds = new HashSet<>();
+        Set<Integer> uniqueGenreIds = new LinkedHashSet<>();
         for (Genre genre : film.getGenres()) {
             if (genre != null && genre.getId() != null) {
                 uniqueGenreIds.add(genre.getId());
@@ -193,7 +189,7 @@ public class FilmDbStorage implements FilmStorage {
                 film.getId()
         );
 
-        film.setGenres(new HashSet<>(genres));
+        film.setGenres(new LinkedHashSet<>(genres));
     }
 
     private void saveLikes(Film film) {
@@ -217,4 +213,5 @@ public class FilmDbStorage implements FilmStorage {
 
         film.setLikes(new HashSet<>(userIds));
     }
+
 }
