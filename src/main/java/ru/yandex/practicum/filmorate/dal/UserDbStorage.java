@@ -15,31 +15,34 @@ import java.sql.Date;
 import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 
 @Repository
 @Qualifier("userDbStorage")
 @RequiredArgsConstructor
 public class UserDbStorage implements UserStorage {
 
-    private static final String FIND_ALL_QUERY = "SELECT * FROM users ORDER BY id";
-    private static final String FIND_BY_ID_QUERY = "SELECT * FROM users WHERE id = ?";
+    private static final String FIND_ALL_QUERY = """
+            SELECT *
+            FROM users
+            ORDER BY id
+            """;
+
+    private static final String FIND_BY_ID_QUERY = """
+            SELECT *
+            FROM users
+            WHERE id = ?
+            """;
+
     private static final String INSERT_QUERY = """
             INSERT INTO users (email, login, name, birthday)
             VALUES (?, ?, ?, ?)
             """;
+
     private static final String UPDATE_QUERY = """
             UPDATE users
             SET email = ?, login = ?, name = ?, birthday = ?
             WHERE id = ?
-            """;
-
-    private static final String DELETE_FRIENDSHIPS_QUERY = """
-            DELETE FROM friendships
-            WHERE user_id = ?
             """;
 
     private static final String INSERT_FRIENDSHIP_QUERY = """
@@ -47,11 +50,26 @@ public class UserDbStorage implements UserStorage {
             VALUES (?, ?)
             """;
 
-    private static final String FIND_FRIEND_IDS_QUERY = """
-            SELECT friend_id
-            FROM friendships
-            WHERE user_id = ?
-            ORDER BY friend_id
+    private static final String DELETE_FRIENDSHIP_QUERY = """
+            DELETE FROM friendships
+            WHERE user_id = ? AND friend_id = ?
+            """;
+
+    private static final String FIND_FRIENDS_QUERY = """
+            SELECT u.*
+            FROM users u
+            JOIN friendships f ON u.id = f.friend_id
+            WHERE f.user_id = ?
+            ORDER BY u.id
+            """;
+
+    private static final String FIND_COMMON_FRIENDS_QUERY = """
+            SELECT u.*
+            FROM users u
+            JOIN friendships f1 ON u.id = f1.friend_id
+            JOIN friendships f2 ON u.id = f2.friend_id
+            WHERE f1.user_id = ? AND f2.user_id = ?
+            ORDER BY u.id
             """;
 
     private final JdbcTemplate jdbcTemplate;
@@ -59,9 +77,7 @@ public class UserDbStorage implements UserStorage {
 
     @Override
     public Collection<User> findAll() {
-        List<User> users = jdbcTemplate.query(FIND_ALL_QUERY, userRowMapper);
-        users.forEach(this::loadFriends);
-        return users;
+        return jdbcTemplate.query(FIND_ALL_QUERY, userRowMapper);
     }
 
     @Override
@@ -81,9 +97,6 @@ public class UserDbStorage implements UserStorage {
             user.setId(keyHolder.getKey().longValue());
         }
 
-        saveFriends(user);
-        loadFriends(user);
-
         return user;
     }
 
@@ -98,10 +111,6 @@ public class UserDbStorage implements UserStorage {
                 user.getId()
         );
 
-        jdbcTemplate.update(DELETE_FRIENDSHIPS_QUERY, user.getId());
-        saveFriends(user);
-        loadFriends(user);
-
         return user;
     }
 
@@ -109,34 +118,29 @@ public class UserDbStorage implements UserStorage {
     public Optional<User> findById(Long id) {
         try {
             User user = jdbcTemplate.queryForObject(FIND_BY_ID_QUERY, userRowMapper, id);
-            if (user != null) {
-                loadFriends(user);
-            }
             return Optional.ofNullable(user);
         } catch (EmptyResultDataAccessException e) {
             return Optional.empty();
         }
     }
 
-    private void saveFriends(User user) {
-        if (user.getFriends() == null || user.getFriends().isEmpty()) {
-            return;
-        }
-
-        Set<Long> uniqueFriendIds = new HashSet<>(user.getFriends());
-
-        for (Long friendId : uniqueFriendIds) {
-            jdbcTemplate.update(INSERT_FRIENDSHIP_QUERY, user.getId(), friendId);
-        }
+    @Override
+    public void addFriend(Long userId, Long friendId) {
+        jdbcTemplate.update(INSERT_FRIENDSHIP_QUERY, userId, friendId);
     }
 
-    private void loadFriends(User user) {
-        List<Long> friendIds = jdbcTemplate.query(
-                FIND_FRIEND_IDS_QUERY,
-                (rs, rowNum) -> rs.getLong("friend_id"),
-                user.getId()
-        );
+    @Override
+    public void removeFriend(Long userId, Long friendId) {
+        jdbcTemplate.update(DELETE_FRIENDSHIP_QUERY, userId, friendId);
+    }
 
-        user.setFriends(new HashSet<>(friendIds));
+    @Override
+    public Collection<User> getFriends(Long userId) {
+        return jdbcTemplate.query(FIND_FRIENDS_QUERY, userRowMapper, userId);
+    }
+
+    @Override
+    public Collection<User> getCommonFriends(Long userId, Long otherId) {
+        return jdbcTemplate.query(FIND_COMMON_FRIENDS_QUERY, userRowMapper, userId, otherId);
     }
 }

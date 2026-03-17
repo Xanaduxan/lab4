@@ -10,8 +10,6 @@ import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -51,42 +49,32 @@ public class UserService {
         checkNotEqualsId(userId, friendId, "Нельзя добавить самого себя в друзья");
         log.info("Пользователь с id={} добавляет в друзья пользователя с id={}", userId, friendId);
 
-        User user = getUserOrThrow(userId);
+        getUserOrThrow(userId);
         getUserOrThrow(friendId);
 
-        user.getFriends().add(friendId);
-        userStorage.update(user);
+        userStorage.addFriend(userId, friendId);
     }
 
     public void removeFriend(Long userId, Long friendId) {
         checkNotEqualsId(userId, friendId, "Нельзя удалить самого себя из своих друзей");
         log.info("Пользователь с id={} удаляет из друзей пользователя с id={}", userId, friendId);
 
-        User user = getUserOrThrow(userId);
+        getUserOrThrow(userId);
         getUserOrThrow(friendId);
 
-        user.getFriends().remove(friendId);
-        userStorage.update(user);
+        userStorage.removeFriend(userId, friendId);
     }
 
     public Collection<User> getFriends(Long userId) {
-        User user = getUserOrThrow(userId);
-
-        return user.getFriends().stream()
-                .map(this::getUserOrThrow)
-                .toList();
+        getUserOrThrow(userId);
+        return userStorage.getFriends(userId);
     }
 
     public Collection<User> getCommonFriends(Long userId, Long otherId) {
-        User user = getUserOrThrow(userId);
-        User otherUser = getUserOrThrow(otherId);
         checkNotEqualsId(userId, otherId, "Id не должны быть одинаковыми");
-        Set<Long> otherFriends = otherUser.getFriends();
-
-        return user.getFriends().stream()
-                .filter(otherFriends::contains)
-                .map(this::getUserOrThrow)
-                .collect(Collectors.toList());
+        getUserOrThrow(userId);
+        getUserOrThrow(otherId);
+        return userStorage.getCommonFriends(userId, otherId);
     }
 
     private void validateUser(User user) {

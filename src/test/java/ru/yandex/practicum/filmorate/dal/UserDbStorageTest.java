@@ -12,7 +12,6 @@ import ru.yandex.practicum.filmorate.model.User;
 import java.time.LocalDate;
 import java.util.Collection;
 import java.util.Optional;
-import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -45,25 +44,16 @@ class UserDbStorageTest {
                     assertThat(foundUser.getLogin()).isEqualTo("test-login");
                     assertThat(foundUser.getName()).isEqualTo("Test User");
                     assertThat(foundUser.getBirthday()).isEqualTo(LocalDate.of(2000, 1, 1));
-                    assertThat(foundUser.getFriends()).isEmpty();
                 });
     }
 
     @Test
     void shouldFindUserById() {
-        User friend = new User();
-        friend.setEmail("friend@mail.com");
-        friend.setLogin("friend-login");
-        friend.setName("Friend User");
-        friend.setBirthday(LocalDate.of(1998, 1, 1));
-        User createdFriend = userDbStorage.create(friend);
-
         User user = new User();
         user.setEmail("find@mail.com");
         user.setLogin("find-login");
         user.setName("Find User");
         user.setBirthday(LocalDate.of(1999, 2, 2));
-        user.setFriends(Set.of(createdFriend.getId()));
 
         User createdUser = userDbStorage.create(user);
 
@@ -76,7 +66,7 @@ class UserDbStorageTest {
                     assertThat(foundUser.getEmail()).isEqualTo("find@mail.com");
                     assertThat(foundUser.getLogin()).isEqualTo("find-login");
                     assertThat(foundUser.getName()).isEqualTo("Find User");
-                    assertThat(foundUser.getFriends()).containsExactly(createdFriend.getId());
+                    assertThat(foundUser.getBirthday()).isEqualTo(LocalDate.of(1999, 2, 2));
                 });
     }
 
@@ -88,26 +78,11 @@ class UserDbStorageTest {
 
     @Test
     void shouldUpdateUser() {
-        User firstFriend = new User();
-        firstFriend.setEmail("first-friend@mail.com");
-        firstFriend.setLogin("first-friend-login");
-        firstFriend.setName("First Friend");
-        firstFriend.setBirthday(LocalDate.of(1990, 1, 1));
-        User createdFirstFriend = userDbStorage.create(firstFriend);
-
-        User secondFriend = new User();
-        secondFriend.setEmail("second-friend@mail.com");
-        secondFriend.setLogin("second-friend-login");
-        secondFriend.setName("Second Friend");
-        secondFriend.setBirthday(LocalDate.of(1991, 1, 1));
-        User createdSecondFriend = userDbStorage.create(secondFriend);
-
         User user = new User();
         user.setEmail("old@mail.com");
         user.setLogin("old-login");
         user.setName("Old Name");
         user.setBirthday(LocalDate.of(1990, 5, 5));
-        user.setFriends(Set.of(createdFirstFriend.getId()));
 
         User createdUser = userDbStorage.create(user);
 
@@ -115,7 +90,6 @@ class UserDbStorageTest {
         createdUser.setLogin("new-login");
         createdUser.setName("New Name");
         createdUser.setBirthday(LocalDate.of(2001, 6, 6));
-        createdUser.setFriends(Set.of(createdSecondFriend.getId()));
 
         User updatedUser = userDbStorage.update(createdUser);
 
@@ -130,25 +104,16 @@ class UserDbStorageTest {
                     assertThat(foundUser.getLogin()).isEqualTo("new-login");
                     assertThat(foundUser.getName()).isEqualTo("New Name");
                     assertThat(foundUser.getBirthday()).isEqualTo(LocalDate.of(2001, 6, 6));
-                    assertThat(foundUser.getFriends()).containsExactly(createdSecondFriend.getId());
                 });
     }
 
     @Test
     void shouldFindAllUsers() {
-        User friend = new User();
-        friend.setEmail("friend@mail.com");
-        friend.setLogin("friend-login");
-        friend.setName("Friend User");
-        friend.setBirthday(LocalDate.of(1992, 2, 2));
-        User createdFriend = userDbStorage.create(friend);
-
         User firstUser = new User();
         firstUser.setEmail("first@mail.com");
         firstUser.setLogin("first-login");
         firstUser.setName("First User");
         firstUser.setBirthday(LocalDate.of(1991, 1, 1));
-        firstUser.setFriends(Set.of(createdFriend.getId()));
 
         User secondUser = new User();
         secondUser.setEmail("second@mail.com");
@@ -161,15 +126,14 @@ class UserDbStorageTest {
 
         Collection<User> users = userDbStorage.findAll();
 
-        assertThat(users).hasSize(3);
+        assertThat(users).hasSize(2);
         assertThat(users)
-                .filteredOn(user -> user.getEmail().equals("first@mail.com"))
-                .singleElement()
-                .satisfies(user -> assertThat(user.getFriends()).containsExactly(createdFriend.getId()));
+                .extracting(User::getEmail)
+                .contains("first@mail.com", "second@mail.com");
     }
 
     @Test
-    void shouldStoreFriendshipAsOneWay() {
+    void shouldAddFriendOneWay() {
         User firstUser = new User();
         firstUser.setEmail("first@mail.com");
         firstUser.setLogin("first-login");
@@ -184,13 +148,73 @@ class UserDbStorageTest {
         secondUser.setBirthday(LocalDate.of(1992, 2, 2));
         User createdSecondUser = userDbStorage.create(secondUser);
 
-        createdFirstUser.setFriends(Set.of(createdSecondUser.getId()));
-        userDbStorage.update(createdFirstUser);
+        userDbStorage.addFriend(createdFirstUser.getId(), createdSecondUser.getId());
 
-        User firstFromDb = userDbStorage.findById(createdFirstUser.getId()).orElseThrow();
-        User secondFromDb = userDbStorage.findById(createdSecondUser.getId()).orElseThrow();
+        Collection<User> firstUserFriends = userDbStorage.getFriends(createdFirstUser.getId());
+        Collection<User> secondUserFriends = userDbStorage.getFriends(createdSecondUser.getId());
 
-        assertThat(firstFromDb.getFriends()).containsExactly(createdSecondUser.getId());
-        assertThat(secondFromDb.getFriends()).isEmpty();
+        assertThat(firstUserFriends)
+                .extracting(User::getId)
+                .containsExactly(createdSecondUser.getId());
+
+        assertThat(secondUserFriends).isEmpty();
+    }
+
+    @Test
+    void shouldRemoveFriend() {
+        User firstUser = new User();
+        firstUser.setEmail("first@mail.com");
+        firstUser.setLogin("first-login");
+        firstUser.setName("First User");
+        firstUser.setBirthday(LocalDate.of(1991, 1, 1));
+        User createdFirstUser = userDbStorage.create(firstUser);
+
+        User secondUser = new User();
+        secondUser.setEmail("second@mail.com");
+        secondUser.setLogin("second-login");
+        secondUser.setName("Second User");
+        secondUser.setBirthday(LocalDate.of(1992, 2, 2));
+        User createdSecondUser = userDbStorage.create(secondUser);
+
+        userDbStorage.addFriend(createdFirstUser.getId(), createdSecondUser.getId());
+        userDbStorage.removeFriend(createdFirstUser.getId(), createdSecondUser.getId());
+
+        Collection<User> friends = userDbStorage.getFriends(createdFirstUser.getId());
+
+        assertThat(friends).isEmpty();
+    }
+
+    @Test
+    void shouldGetCommonFriends() {
+        User firstUser = new User();
+        firstUser.setEmail("first@mail.com");
+        firstUser.setLogin("first-login");
+        firstUser.setName("First User");
+        firstUser.setBirthday(LocalDate.of(1991, 1, 1));
+        User createdFirstUser = userDbStorage.create(firstUser);
+
+        User secondUser = new User();
+        secondUser.setEmail("second@mail.com");
+        secondUser.setLogin("second-login");
+        secondUser.setName("Second User");
+        secondUser.setBirthday(LocalDate.of(1992, 2, 2));
+        User createdSecondUser = userDbStorage.create(secondUser);
+
+        User commonFriend = new User();
+        commonFriend.setEmail("common@mail.com");
+        commonFriend.setLogin("common-login");
+        commonFriend.setName("Common Friend");
+        commonFriend.setBirthday(LocalDate.of(1993, 3, 3));
+        User createdCommonFriend = userDbStorage.create(commonFriend);
+
+        userDbStorage.addFriend(createdFirstUser.getId(), createdCommonFriend.getId());
+        userDbStorage.addFriend(createdSecondUser.getId(), createdCommonFriend.getId());
+
+        Collection<User> commonFriends =
+                userDbStorage.getCommonFriends(createdFirstUser.getId(), createdSecondUser.getId());
+
+        assertThat(commonFriends)
+                .extracting(User::getId)
+                .containsExactly(createdCommonFriend.getId());
     }
 }
