@@ -52,9 +52,7 @@ public class FilmService {
         validateMpa(film);
         prepareGenres(film);
 
-        Film createdFilm = filmStorage.create(film);
-
-        return createdFilm;
+        return filmStorage.create(film);
     }
 
     public Film update(Film film) {
