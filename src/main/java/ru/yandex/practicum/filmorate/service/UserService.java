@@ -1,6 +1,7 @@
 package ru.yandex.practicum.filmorate.service;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import ru.yandex.practicum.filmorate.exception.NotFoundException;
 import ru.yandex.practicum.filmorate.exception.ValidationException;
@@ -9,8 +10,6 @@ import ru.yandex.practicum.filmorate.storage.user.UserStorage;
 
 import java.time.LocalDate;
 import java.util.Collection;
-import java.util.HashSet;
-import java.util.Set;
 
 @Slf4j
 @Service
@@ -18,7 +17,7 @@ public class UserService {
 
     private final UserStorage userStorage;
 
-    public UserService(UserStorage userStorage) {
+    public UserService(@Qualifier("userDbStorage") UserStorage userStorage) {
         this.userStorage = userStorage;
     }
 
@@ -30,7 +29,7 @@ public class UserService {
     public User create(User user) {
         log.info("Запрос на создание пользователя");
         validateUser(user);
-        fillNameIfBlank(user);
+        prepareUserName(user);
         return userStorage.create(user);
     }
 
@@ -38,7 +37,7 @@ public class UserService {
         log.info("Запрос на обновление пользователя с id={}", user.getId());
         getUserOrThrow(user.getId());
         validateUser(user);
-        fillNameIfBlank(user);
+        prepareUserName(user);
         return userStorage.update(user);
     }
 
@@ -47,75 +46,43 @@ public class UserService {
     }
 
     public void addFriend(Long userId, Long friendId) {
-        log.info("Добавление в друзья: id={}, id={}", userId, friendId);
         checkNotEqualsId(userId, friendId, "Нельзя добавить самого себя в друзья");
+        log.info("Пользователь с id={} добавляет в друзья пользователя с id={}", userId, friendId);
 
-        User user = getUserOrThrow(userId);
+        getUserOrThrow(userId);
+        getUserOrThrow(friendId);
 
-        User friend = getUserOrThrow(friendId);
-
-        user.getFriends().add(friendId);
-        friend.getFriends().add(userId);
-
-
-        userStorage.update(user);
-        userStorage.update(friend);
-        log.info("Пользователи id={} и id={} теперь друзья", userId, friendId);
+        userStorage.addFriend(userId, friendId);
     }
 
     public void removeFriend(Long userId, Long friendId) {
-        log.info("Удаление из друзей: id={}, id={}", userId, friendId);
         checkNotEqualsId(userId, friendId, "Нельзя удалить самого себя из своих друзей");
-        User user = getUserOrThrow(userId);
-        User friend = getUserOrThrow(friendId);
+        log.info("Пользователь с id={} удаляет из друзей пользователя с id={}", userId, friendId);
 
+        getUserOrThrow(userId);
+        getUserOrThrow(friendId);
 
-        user.getFriends().remove(friendId);
-        friend.getFriends().remove(userId);
-
-        userStorage.update(user);
-        userStorage.update(friend);
-
-        log.info("Пользователи id={} и id={} больше не друзья", userId, friendId);
-    }
-
-    public Collection<User> getCommonFriends(Long userId, Long otherId) {
-        log.info("Запрос общих друзей: id={}, id={}", userId, otherId);
-        checkNotEqualsId(userId, otherId, "Id не должны быть одинаковыми");
-        User user = getUserOrThrow(userId);
-        User otherUser = getUserOrThrow(otherId);
-
-        Set<Long> commonFriendsIds = new HashSet<>(user.getFriends());
-        commonFriendsIds.retainAll(otherUser.getFriends());
-
-        Collection<User> commonFriends = commonFriendsIds.stream().map(this::getUserOrThrow).toList();
-
-        log.info("Общие друзья для id={} и id={} успешно получены", userId, otherId);
-        return commonFriends;
+        userStorage.removeFriend(userId, friendId);
     }
 
     public Collection<User> getFriends(Long userId) {
-        log.info("Запрос списка друзей: id={}", userId);
-
-        User user = getUserOrThrow(userId);
-        Collection<User> friends = user.getFriends().stream().map(this::getUserOrThrow).toList();
-
-        log.info("Список друзей для id={} успешно получен", userId);
-        return friends;
+        getUserOrThrow(userId);
+        return userStorage.getFriends(userId);
     }
 
+    public Collection<User> getCommonFriends(Long userId, Long otherId) {
+        checkNotEqualsId(userId, otherId, "Id не должны быть одинаковыми");
+        getUserOrThrow(userId);
+        getUserOrThrow(otherId);
+        return userStorage.getCommonFriends(userId, otherId);
+    }
 
     private void validateUser(User user) {
-        String email = user.getEmail();
-        if (email == null || email.isBlank()) {
-            throw new ValidationException("Электронная почта не может быть пустой");
-        }
-        if (!email.contains("@")) {
-            throw new ValidationException("Электронная почта должна содержать символ @");
+        if (user.getEmail() == null || user.getEmail().isBlank() || !user.getEmail().contains("@")) {
+            throw new ValidationException("Некорректный email");
         }
 
-        String login = user.getLogin();
-        if (login == null || login.isBlank() || login.contains(" ")) {
+        if (user.getLogin() == null || user.getLogin().isBlank() || user.getLogin().contains(" ")) {
             throw new ValidationException("Логин не может быть пустым и содержать пробелы");
         }
 
@@ -125,10 +92,15 @@ public class UserService {
         }
     }
 
-    private void fillNameIfBlank(User user) {
+    private void prepareUserName(User user) {
         if (user.getName() == null || user.getName().isBlank()) {
             user.setName(user.getLogin());
         }
+    }
+
+    private User getUserOrThrow(Long userId) {
+        return userStorage.findById(userId)
+                .orElseThrow(() -> new NotFoundException("Пользователь с id=" + userId + " не найден"));
     }
 
     private void checkNotEqualsId(Long firstId, Long secondId, String message) {
@@ -138,9 +110,5 @@ public class UserService {
         if (firstId.equals(secondId)) {
             throw new ValidationException(message);
         }
-    }
-
-    private User getUserOrThrow(Long userId) {
-        return userStorage.findById(userId).orElseThrow(() -> new NotFoundException("Пользователь с id=" + userId + " не найден"));
     }
 }
