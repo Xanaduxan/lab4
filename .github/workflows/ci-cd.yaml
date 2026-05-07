@@ -1,0 +1,153 @@
+name: Filmorate CI/CD
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+    workflow_dispatch:
+        inputs:
+            rollback:
+                description: "Run rollback simulation"
+                required: false
+                default: "false"
+
+jobs:
+    checkstyle:
+        name: Checkstyle
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Java 21 with Maven cache
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: 21
+                  cache: maven
+
+            - name: Run Checkstyle
+              run: mvn -B checkstyle:check
+
+    tests:
+        name: Tests
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Java 21 with Maven cache
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: 21
+                  cache: maven
+
+            - name: Run stable tests
+              run: mvn -B test
+
+            - name: Upload test reports
+              if: always()
+              uses: actions/upload-artifact@v4
+              with:
+                  name: test-reports
+                  path: target/surefire-reports
+
+            - name: Add test metrics
+              if: always()
+              run: |
+                  echo "## Test metrics" >> $GITHUB_STEP_SUMMARY
+                  echo "- Tests finished" >> $GITHUB_STEP_SUMMARY
+                  echo "- Test reports saved as artifact: test-reports" >> $GITHUB_STEP_SUMMARY
+
+    build:
+        name: Build JAR
+        runs-on: ubuntu-latest
+        needs:
+            - checkstyle
+            - tests
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Java 21 with Maven cache
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: 21
+                  cache: maven
+
+            - name: Build application
+              run: mvn -B package -DskipTests
+
+            - name: Upload build artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: filmorate-jar
+                  path: target/*.jar
+
+            - name: Add build metrics
+              run: |
+                  echo "## Build metrics" >> $GITHUB_STEP_SUMMARY
+                  echo "- Maven cache enabled" >> $GITHUB_STEP_SUMMARY
+                  echo "- Build artifact saved: filmorate-jar" >> $GITHUB_STEP_SUMMARY
+                  echo "- Checkstyle and tests were executed in parallel jobs" >> $GITHUB_STEP_SUMMARY
+
+    deploy:
+        name: Deploy simulation
+        runs-on: ubuntu-latest
+        needs: build
+        if: github.ref == 'refs/heads/main'
+
+        steps:
+            - name: Download build artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: filmorate-jar
+                  path: deploy
+
+            - name: Deploy simulation with rollback artifact
+              run: |
+                  mkdir -p previous-version
+                  cp deploy/*.jar previous-version/app.jar
+                  echo "Deploying application..."
+                  echo "Previous version saved for rollback"
+
+            - name: Upload rollback artifact
+              uses: actions/upload-artifact@v4
+              with:
+                  name: rollback-version
+                  path: previous-version/app.jar
+
+            - name: Add deploy metrics
+              run: |
+                  echo "## Deploy metrics" >> $GITHUB_STEP_SUMMARY
+                  echo "- Deploy simulation completed" >> $GITHUB_STEP_SUMMARY
+                  echo "- Rollback artifact saved: rollback-version" >> $GITHUB_STEP_SUMMARY
+
+    rollback:
+        name: Rollback simulation
+        runs-on: ubuntu-latest
+        needs: deploy
+        if: github.event.inputs.rollback == 'true'
+
+        steps:
+            - name: Download rollback artifact
+              uses: actions/download-artifact@v4
+              with:
+                  name: rollback-version
+                  path: rollback
+
+            - name: Run rollback simulation
+              run: |
+                  echo "Rollback started"
+                  ls -la rollback
+                  echo "Previous stable version restored"
+
+            - name: Add rollback metrics
+              run: |
+                  echo "## Rollback metrics" >> $GITHUB_STEP_SUMMARY
+                  echo "- Rollback simulation completed" >> $GITHUB_STEP_SUMMARY
