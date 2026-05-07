@@ -164,6 +164,8 @@ needs:
 Теперь jobs выполняются параллельно, что ускоряет выполнение pipeline.
 ![alt text](image.png)
 
+### Часть 2
+
 ## Почему хранение секретов в CI/CD переменных репозитория не является хорошей практикой
 
 - Секреты привязаны к одному конкретному репозиторию.
@@ -171,3 +173,74 @@ needs:
 - Изменения секретов возможны только вручную.
 - Секрет может "утечь" из-за ошибок в pipeline
 - Настроить гибкие политики доступа становится сложнее.
+
+## Работа с секретами через Vault и OIDC
+
+Для работы с секретами была выбрана связка **GitHub Actions + HashiCorp Vault + OIDC**.
+
+Секреты хранятся во внешнем хранилище Vault, а GitHub Actions получает доступ через временный OIDC-токен.
+
+## Запуск Vault
+
+```bash
+sudo docker run --name vault \
+  -e VAULT_DEV_ROOT_TOKEN_ID=root \
+  -e VAULT_DEV_LISTEN_ADDRESS=0.0.0.0:8200 \
+  -p 8200:8200 \
+  vault:1.13.3
+```
+
+## Настройка Vault
+
+```bash
+sudo docker exec -it vault sh
+export VAULT_ADDR=http://127.0.0.1:8200
+export VAULT_TOKEN=root
+```
+
+## Создание секрета
+
+```bash
+vault kv put secret/filmorate db_password="super-secret-password"
+```
+
+![alt text](image-1.png)
+
+## Настройка OIDC
+
+```bash
+vault auth enable jwt
+```
+
+```bash
+vault write auth/jwt/config \
+  bound_issuer="https://token.actions.githubusercontent.com" \
+  oidc_discovery_url="https://token.actions.githubusercontent.com"
+```
+
+![alt text](image-2.png)
+
+## Настройка доступа
+
+```bash
+vault policy write filmorate-policy - <<EOF
+path "secret/data/filmorate" {
+  capabilities = ["read"]
+}
+EOF
+```
+
+```bash
+vault write auth/jwt/role/filmorate-github-actions \
+  role_type="jwt" \
+  bound_audiences="https://github.com/Xanaduxan" \
+  user_claim="actor" \
+  policies="filmorate-policy" \
+  ttl="10m"
+```
+
+![alt text](image-3.png)
+
+## Результат
+
+Vault хранит секрет отдельно от репозитория. GitHub Actions получает доступ к нему через OIDC. К сожалению, это теоритическая реализация. Локально Vault был настроен и проверен, но GitHub Actions не сможет обратиться к localhost на моей машине.
