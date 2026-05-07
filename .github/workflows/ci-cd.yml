@@ -1,0 +1,47 @@
+name: Bad Filmorate CI/CD
+
+on:
+    push:
+        branches:
+            - main
+    pull_request:
+        branches:
+            - main
+
+jobs:
+    bad-pipeline:
+        name: Bad pipeline
+        runs-on: ubuntu-latest
+
+        steps:
+            - uses: actions/checkout@v4
+
+            - name: Set up Java 21 without cache
+              uses: actions/setup-java@v4
+              with:
+                  distribution: temurin
+                  java-version: 21
+
+            - name: Run everything sequentially
+              run: |
+                  mvn -B checkstyle:check
+                  mvn -B test
+                  mvn -B package
+
+            - name: Flaky test simulation
+              run: |
+                  NUMBER=$(( RANDOM % 2 ))
+                  if [ "$NUMBER" -eq 0 ]; then
+                    echo "Random failure"
+                    exit 1
+                  fi
+                  echo "Random success"
+
+            - name: Deploy simulation without rollback
+              run: |
+                  echo "Deploying application..."
+                  echo "No rollback configured"
+
+            - name: No metrics
+              run: |
+                  echo "Pipeline finished"
