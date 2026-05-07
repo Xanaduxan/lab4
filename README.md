@@ -65,7 +65,7 @@ Pipeline не собирает информацию о времени сборк
 ```yaml
 - name: Run everything sequentially
   run: |
-    mvn -B checkstyle:check
+    mvn -B compile
     mvn -B test
     mvn -B package
 ```
@@ -149,15 +149,15 @@ Maven использует cache и не скачивает зависимост
 
 ```yaml
 jobs:
-  checkstyle:
+  compile:
   tests:
 ```
 
-Сборка запускается только после успешного завершения checkstyle и тестов:
+Сборка запускается только после успешного завершения compile и тестов:
 
 ```yaml
 needs:
-  - checkstyle
+  - compile
   - tests
 ```
 
